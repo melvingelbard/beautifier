@@ -59,6 +59,30 @@ public class Beautifyer {
         return out;
     }
 
+    public String beautifyGroovy(String text) {
+        String out = "";
+        int currentIndent = 0;
+        boolean isComment = false;
+
+        // Trim each line
+        var lines = text.lines().map(line -> line.trim()).collect(Collectors.toList());
+        for (String line: lines) {
+            // TODO: Handle comments
+            if (line.contains("/*")) // TODO: What if closing block is on the same line, what if before/after?
+                isComment = true;
+            if (line.contains("\\*"))
+                isComment = false;
+            out += repeat(currentIndent, tabString) + line;
+            var cleanString = line.trim().replaceAll("\"([^\"\\\\]|\\\\.)*\"", "");
+            if (cleanString.contains("{"))
+                currentIndent++;
+            if (cleanString.contains("}"))
+                currentIndent--;
+        }
+
+        return out;
+    }
+
     /**
      * Repeat the {@code word} {@code count} times.
      * <p>
