@@ -1,11 +1,16 @@
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 
 // TODO: handle quote escaping (e.g. "key": "\"")
 // TODO: catch AssertionExceptions
-public class Beautifyer {
+public class Beautifier {
 
-    private static String tabString = "  ";
+    private static String tabString = "    ";
+    private static String doubleQuotePattern = "\"([^\"\\\\]|\\\\.)*\"";
+    private static String inLineCommentPattern = "\\/\\/.*$";
+    private static String oneLineIfPattern = "(else\\s?)?if\\s?\\(.*\\)$";
+    private static String oneLineElsePattern = "\\}?else$";
 
     public static String beautifyJson(String text) {
         int pointer = 0;
@@ -59,27 +64,51 @@ public class Beautifyer {
         return out;
     }
 
-    public String beautifyGroovy(String text) {
+    // TODO: Handle no-parenthesis if statement with multi-line conditions
+    public static String beautifyGroovy(String text) {
         String out = "";
         int currentIndent = 0;
         boolean isComment = false;
+        boolean oneLineStatement = false;
 
         // Trim each line
         var lines = text.lines().map(line -> line.trim()).collect(Collectors.toList());
         for (String line: lines) {
-            // TODO: Handle comments
-            if (line.contains("/*")) // TODO: What if closing block is on the same line, what if before/after?
+            if (line.contains("/*")) {
                 isComment = true;
-            if (line.contains("\\*"))
+                if (line.substring(line.indexOf("/*")).contains("\\*"))
+                    isComment = false;
+                out += repeat(currentIndent, tabString) + line + System.lineSeparator();
+            } else if (line.contains("*/")) {
                 isComment = false;
-            out += repeat(currentIndent, tabString) + line;
-            var cleanString = line.trim().replaceAll("\"([^\"\\\\]|\\\\.)*\"", "");
-            if (cleanString.contains("{"))
-                currentIndent++;
-            if (cleanString.contains("}"))
-                currentIndent--;
+                out += repeat(currentIndent, tabString) + line + System.lineSeparator();
+            } else {
+                if (!isComment) {
+                    var cleanString = line.replaceAll(doubleQuotePattern, "").replaceAll(inLineCommentPattern, "").trim();
+                    var indentCount = cleanString.replaceAll("[^{]", "").length() - cleanString.replaceAll("[^}]", "").length();
+                    if (cleanString.contains("{") || cleanString.contains("}")) {
+                        if (indentCount > 0) {
+                            out += repeat(currentIndent, tabString) + line + System.lineSeparator();
+                            currentIndent++;
+                            continue;
+                        } else if (indentCount < 0) {
+                            currentIndent--;
+                        }
+                    } else if (Pattern.matches(oneLineIfPattern, cleanString) || Pattern.matches(oneLineElsePattern, cleanString)) {
+                        out += repeat(currentIndent++, tabString) + line + System.lineSeparator();
+                        oneLineStatement = true;
+                        continue;
+                    }
+                    if (oneLineStatement) {
+                        // If we were in a one-line statement, we're not anymore
+                        oneLineStatement = false;
+                        out += repeat(currentIndent--, tabString) + line + System.lineSeparator();
+                        continue;
+                    }
+                }
+                out += repeat(currentIndent, tabString) + line + System.lineSeparator();
+            }
         }
-
         return out;
     }
 
